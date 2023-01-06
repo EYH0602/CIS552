@@ -44,10 +44,6 @@ map f = foldr f' []
   where
     f' x acc = f x : acc
 
--- not from class
-foldl :: (a -> b -> a) -> a -> [b] -> a
-foldl f = foldr (flip f)
-
 main :: IO ()
 main = do
   print (ex1 (+ 10) 5)
@@ -55,7 +51,6 @@ main = do
   print (factorial 20)
   print (filter even [1 .. 10])
   print (map (+ 1) [1 .. 5])
-  print (foldl (+) 0 [1 .. 5])
 
 dtTests :: Test
 dtTests =
