@@ -1,12 +1,16 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Replace case with fromMaybe" #-}
 module Main where
 
 -- libraries for Kata problem (only)
 
 import qualified Data.Char as Char
+import Data.List (sortOn)
 import qualified Data.List as List
+import Data.List.Split (splitOn)
 import qualified Data.Maybe as Maybe
-import Data.Type.Coercion (trans)
-import Test.HUnit (Assertion, Test (TestList), assertFailure, runTestTT, (~:), (~?=))
+import Test.HUnit (Assertion, Test (TestList), assertFailure, runTestTT, (@?=), (~:), (~?=))
 import qualified Text.Read as Read
 import Prelude hiding (concat, reverse, zip, (++))
 
@@ -153,7 +157,7 @@ ttranspose =
 -- occurrences of a substring sub found in a string.
 countSub :: String -> String -> Int
 countSub "" xs = 1 + length xs
-countSub sub xs = length (filter (==sub) (List.subsequences xs)) - 1
+countSub sub xs = length (filter (== sub) (List.subsequences xs)) - 1
 
 tcountSub :: Test
 tcountSub =
@@ -167,15 +171,45 @@ tcountSub =
 -- Data Munging Kata
 --------------------------------------------------------------------------------
 
+-- Part One: Weather
+-- NOTE: this part is different than org since I don't have their data
+
+weather :: String -> Maybe String
+weather str =
+  case readcsv str of
+    [[_]] -> Nothing -- csv parsing failed
+    df -> Just $ head $ last (sortOn (\r -> camp (readInt (r !! 1)) (readInt (r !! 2))) (tail df))
+
+camp :: Maybe Int -> Maybe Int -> Int
+camp Nothing _ = 0
+camp _ Nothing = 0
+camp (Just x) (Just y) = abs (x - y)
+
+weatherProgram :: IO ()
+weatherProgram = do
+  str <- readFile "phi.csv"
+  putStrLn
+    ( case weather str of
+        Just result -> result
+        Nothing -> "Cannot read file"
+    )
+
+-- | Use this function to parse Ints
+readInt :: String -> Maybe Int
+readInt = Read.readMaybe
+
+readcsv :: String -> [[String]]
+readcsv = map (splitOn ",") . lines
+
 main :: IO ()
 main = do
   _ <-
     runTestTT $
       TestList
         [ testStyle,
-          testLists
+          testLists,
+          testWeather
         ]
-  --  testWeather,
   --  testSoccer ]
   return ()
 
@@ -189,3 +223,9 @@ testLists =
   "testLists"
     ~: TestList
       [tminimumMaybe, tstartsWith, tendsWith, ttranspose, tcountSub]
+
+testWeather :: Test
+testWeather =
+  "weather" ~: do
+    str <- readFile "phi.csv"
+    weather str @?= Just "2022-12-24"
