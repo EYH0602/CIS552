@@ -153,6 +153,97 @@ tcountSub =
       ]
 
 ----------------------------------------------------------------------
+data Tree a
+  = Empty
+  | Branch a (Tree a) (Tree a)
+  deriving (Show, Eq)
+
+mapTree :: (a -> b) -> Tree a -> Tree b
+mapTree _ Empty = Empty
+mapTree f (Branch x t1 t2) = Branch (f x) (mapTree f t1) (mapTree f t2)
+
+foldTree :: (a -> b -> b -> b) -> b -> Tree a -> b
+foldTree _ e Empty = e
+foldTree f e (Branch a n1 n2) = f a (foldTree f e n1) (foldTree f e n2)
+
+foldrTree :: (a -> b -> b) -> b -> Tree a -> b
+foldrTree f z t = foldTree go id t z
+  where
+    go k l r z0 = l (f k (r z0))
+
+-- The `appendTree` function takes two trees and replaces all of the `Empty`
+-- constructors in the first with the second tree.  For example:
+-- todo: use fold or map
+appendTree :: Tree a -> Tree a -> Tree a
+appendTree Empty t = t
+appendTree (Branch a l r) t = Branch a (appendTree l t) (appendTree r t)
+
+tappendTree :: Test
+tappendTree =
+  "appendTree"
+    ~: TestList
+      [ appendTree (Branch 'a' Empty Empty) (Branch 'b' Empty Empty) ~?= Branch 'a' (Branch 'b' Empty Empty) (Branch 'b' Empty Empty),
+        appendTree Empty (Branch 'a' Empty Empty) ~?= Branch 'a' Empty Empty
+      ]
+
+-- The `invertTree` function takes a tree of pairs and returns a new tree
+-- with each pair reversed.  For example:
+invertTree :: Tree (a, b) -> Tree (b, a)
+invertTree = mapTree (\(a, b) -> (b, a))
+
+tinvertTree :: Test
+tinvertTree =
+  "invertTree"
+    ~: TestList
+      [ invertTree (Branch ("a", True) Empty Empty) ~?= Branch (True, "a") Empty Empty
+      ]
+
+tree1 :: Tree Int
+tree1 = Branch 1 (Branch 2 Empty Empty) (Branch 3 Empty Empty)
+
+-- `takeWhileTree`, applied to a predicate `p` and a tree `t`,
+-- returns the largest prefix tree of `t` (possibly empty)
+-- where all elements satisfy `p`.
+takeWhileTree :: (a -> Bool) -> Tree a -> Tree a
+takeWhileTree p = foldrTree f Empty
+  where
+    f x Empty = if p x then Branch x Empty Empty else Empty
+    f x t@(Branch y l r) = if p x then Branch y (Branch x l r) Empty else t
+
+ttakeWhileTree :: Test
+ttakeWhileTree =
+  "takeWhileTree"
+    ~: TestList
+      [ takeWhileTree (< 3) tree1 ~?= Branch 1 (Branch 2 Empty Empty) Empty,
+        takeWhileTree (< 0) tree1 ~?= Empty
+      ]
+
+-- `allTree pred tree` returns `False` if any element of `tree`
+-- fails to satisfy `pred` and `True` otherwise. For example:
+allTree :: (a -> Bool) -> Tree a -> Bool
+allTree p = foldrTree (\x acc -> p x && acc) True
+
+tallTree :: Test
+tallTree = "allTree" ~: TestList [allTree odd tree1 ~?= False]
+
+-- `map2Tree f xs ys` returns the tree obtained by applying `f` to
+-- to each pair of corresponding elements of `xs` and `ys`. If
+-- one branch is longer than the other, then the extra elements
+-- are ignored.
+-- ToDo use foldTree
+map2Tree :: (a -> b -> c) -> Tree a -> Tree b -> Tree c
+map2Tree _ _ Empty = Empty
+map2Tree _ Empty _ = Empty
+map2Tree f t1@(Branch x l1 r1) t2@(Branch y l2 r2) = Branch (f x y) (map2Tree f l1 l2) (map2Tree f r1 r2)
+
+tmap2Tree :: Test
+tmap2Tree =
+  "map2Tree"
+    ~: TestList
+      [ map2Tree (+) (Branch 1 Empty (Branch 2 Empty Empty)) (Branch 3 Empty Empty) ~?= Branch 4 Empty Empty
+      ]
+
+----------------------------------------------------------------------
 
 main :: IO ()
 main = doTests
@@ -163,8 +254,8 @@ doTests = do
     runTestTT $
       TestList
         [ testHO,
-          testFoldr
-          --   testTree,
+          testFoldr,
+          testTree
           --   testXML
         ]
   return ()
@@ -187,4 +278,14 @@ testFoldr =
       tendsWith,
       ttails,
       tcountSub
+    ]
+
+testTree :: Test
+testTree =
+  TestList
+    [ tappendTree,
+      tinvertTree,
+      ttakeWhileTree,
+      tallTree,
+      tmap2Tree
     ]
