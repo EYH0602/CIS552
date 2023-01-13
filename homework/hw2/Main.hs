@@ -3,7 +3,7 @@ module Main where
 import Play
 import Test.HUnit (Test (TestList), runTestTT, (~:), (~?=))
 import XMLTypes
-import Prelude hiding (all, concat, takeWhile)
+import Prelude hiding (all, concat, takeWhile, zip, (++))
 
 -- | `takeWhile`, applied to a predicate `p` and a list `xs`,
 -- returns the longest prefix (possibly empty) of `xs` of elements
@@ -77,6 +77,82 @@ root :: Double -> Maybe Double
 root d = if d < 0.0 then Nothing else Just $ sqrt d
 
 ----------------------------------------------------------------------
+-- is (:) considered list function?
+(++) :: [a] -> [a] -> [a]
+(++) = flip $ foldr (:)
+
+-- | The concatenation of all of the elements of a list of lists
+concat :: [[a]] -> [a]
+concat = foldr (++) []
+
+tconcat :: Test
+tconcat = "concat" ~: TestList [concat [[1, 2, 3], [4, 5, 6], [7, 8, 9]] ~?= [1, 2, 3, 4, 5, 6, 7, 8, 9]]
+
+zip :: [a] -> [b] -> [(a, b)]
+zip [] _ = []
+zip _ [] = []
+zip (x : xs) (y : ys) = (x, y) : zip xs ys
+
+-- | The 'startsWith' function takes two strings and returns 'True'
+-- iff the first is a prefix of the second.
+startsWith :: String -> String -> Bool
+startsWith xs ys = foldr (\(x, y) acc -> x == y && acc) True (zip xs ys)
+
+tstartsWith :: Test
+tstartsWith =
+  "startsWith"
+    ~: TestList
+      [ "Hello" `startsWith` "Hello World!" ~?= True,
+        "Hello" `startsWith` "Wello Horld!" ~?= False
+      ]
+
+-- | foldr variant that provides access to each tail of the list
+para :: (a -> [a] -> b -> b) -> b -> [a] -> b
+para _ b [] = b
+para f b (x : xs) = f x xs (para f b xs)
+
+-- | The 'tails' function calculates all suffixes of a give list and returns them
+-- in decreasing order of length. For example:
+tails :: [a] -> [[a]]
+tails = para (\y ys b -> (y : ys) : b) [[]]
+
+ttails :: Test
+ttails =
+  "tails"
+    ~: TestList
+      [ "tails0" ~: tails "abc" ~?= ["abc", "bc", "c", ""],
+        "tails1" ~: tails "" ~?= [""],
+        "tails2" ~: tails "a" ~?= ["a", ""]
+      ]
+
+-- | The 'endsWith' function takes two lists and returns 'True' iff
+-- the first list is a suffix of the second. The second list must be
+-- finite.
+endsWith :: String -> String -> Bool
+endsWith xs = para (\s ss b -> (s : ss) == xs || b) False
+
+tendsWith :: Test
+tendsWith =
+  "endsWith"
+    ~: TestList
+      [ "ld!" `endsWith` "Hello World!" ~?= True,
+        "World" `endsWith` "Hello World!" ~?= False
+      ]
+
+-- | The 'countSub' function returns the number of (potentially overlapping)
+-- occurrences of a substring sub found in a string.
+countSub :: String -> String -> Int
+countSub xs = para (\s ss b -> fromEnum (xs `startsWith` (s : ss)) + b) (-1)
+
+tcountSub :: Test
+tcountSub =
+  "countSub"
+    ~: TestList
+      [ countSub "aa" "aaa" ~?= 2,
+        countSub "" "aaac" ~?= 3
+      ]
+
+----------------------------------------------------------------------
 
 main :: IO ()
 main = doTests
@@ -86,10 +162,10 @@ doTests = do
   _ <-
     runTestTT $
       TestList
-        [ testHO
-        --   testFoldr,
-        --   testTree,
-        --   testXML
+        [ testHO,
+          testFoldr
+          --   testTree,
+          --   testXML
         ]
   return ()
 
@@ -101,4 +177,14 @@ testHO =
       tall,
       tmap2,
       tmapMaybe
+    ]
+
+testFoldr :: Test
+testFoldr =
+  TestList
+    [ tconcat,
+      tstartsWith,
+      tendsWith,
+      ttails,
+      tcountSub
     ]
