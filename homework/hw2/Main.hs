@@ -1,7 +1,9 @@
 module Main where
 
+import LibXML
 import Play
-import Test.HUnit (Test (TestList), runTestTT, (~:), (~?=))
+import Test.HUnit (Test (..), assertFailure, runTestTT, (~:), (~?=))
+import Text.Printf
 import XMLTypes
 import Prelude hiding (all, concat, takeWhile, zip, (++))
 
@@ -244,9 +246,31 @@ tmap2Tree =
       ]
 
 ----------------------------------------------------------------------
+formatPlay :: SimpleXML -> SimpleXML
+formatPlay e@(Element name xs) = Element "html" [body]
+  where
+    body = formatPlayWithLevel 1 e
 
+-- ToDo: better format
+formatPlayWithLevel :: Int -> SimpleXML -> SimpleXML
+formatPlayWithLevel _ (PCDATA s) = Element "p" [PCDATA s]
+formatPlayWithLevel l (Element name xs) = Element "body" (header:body)
+  where
+    header = Element ("h" ++ show l) [PCDATA name]
+    body = map (formatPlayWithLevel (l + 1)) xs
+
+dumpXML :: SimpleXML -> String
+dumpXML (PCDATA s) = s
+dumpXML (Element name []) = "<" ++ name ++ "/>"
+dumpXML (Element name xs) = open ++ body ++ close
+  where
+    open = "<" ++ name ++ ">"
+    close = "</" ++ name ++ ">"
+    body = foldr (\x acc -> dumpXML x ++ acc) "" xs
+
+----------------------------------------------------------------------
 main :: IO ()
-main = doTests
+main = writeFile "dream.html" (dumpXML $ formatPlay play)
 
 doTests :: IO ()
 doTests = do
@@ -255,8 +279,8 @@ doTests = do
       TestList
         [ testHO,
           testFoldr,
-          testTree
-          --   testXML
+          testTree,
+          testXML
         ]
   return ()
 
@@ -289,3 +313,29 @@ testTree =
       tallTree,
       tmap2Tree
     ]
+
+-- | Find the first point where two lists differ and return
+-- the remaining elements in the two lists.
+firstDiff :: Eq a => [a] -> [a] -> Maybe ([a], [a])
+firstDiff [] [] = Nothing
+firstDiff (c : cs) (d : ds)
+  | c == d = firstDiff cs ds
+  | otherwise = Just (c : cs, d : ds)
+firstDiff cs ds = Just (cs, ds)
+
+-- | Test the two files character by character, to determine whether
+-- they match.
+testResults :: String -> String -> IO ()
+testResults file1 file2 = do
+  f1 <- readFile file1
+  f2 <- readFile file2
+  case firstDiff f1 f2 of
+    Nothing -> return ()
+    Just (cs, ds) -> assertFailure msg
+      where
+        msg = "Results differ: '" ++ take 20 cs ++ "' vs '" ++ take 20 ds
+
+testXML :: Test
+testXML = TestCase $ do
+  writeFile "dream.html" (xml2string (formatPlay play))
+  testResults "dream.html" "sample.html"
