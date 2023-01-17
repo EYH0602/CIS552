@@ -1,10 +1,9 @@
 module Main where
 
-import LibXML
-import Play
+import Data.Maybe (fromJust, fromMaybe)
+import Play (play)
 import Test.HUnit (Test (..), assertFailure, runTestTT, (~:), (~?=))
-import Text.Printf
-import XMLTypes
+import XMLTypes (SimpleXML (..), xml2string)
 import Prelude hiding (all, concat, takeWhile, zip, (++))
 
 -- | `takeWhile`, applied to a predicate `p` and a list `xs`,
@@ -247,30 +246,33 @@ tmap2Tree =
 
 ----------------------------------------------------------------------
 formatPlay :: SimpleXML -> SimpleXML
-formatPlay e@(Element name xs) = Element "html" [body]
-  where
-    body = formatPlayWithLevel 1 e
+formatPlay e = Element "html" (toHTML 0 e)
 
--- ToDo: better format
-formatPlayWithLevel :: Int -> SimpleXML -> SimpleXML
-formatPlayWithLevel _ (PCDATA s) = Element "p" [PCDATA s]
-formatPlayWithLevel l (Element name xs) = Element "body" (header:body)
-  where
-    header = Element ("h" ++ show l) [PCDATA name]
-    body = map (formatPlayWithLevel (l + 1)) xs
+singleLines :: [String]
+singleLines = ["PERSONA", "LINE"]
 
-dumpXML :: SimpleXML -> String
-dumpXML (PCDATA s) = s
-dumpXML (Element name []) = "<" ++ name ++ "/>"
-dumpXML (Element name xs) = open ++ body ++ close
-  where
-    open = "<" ++ name ++ ">"
-    close = "</" ++ name ++ ">"
-    body = foldr (\x acc -> dumpXML x ++ acc) "" xs
+toLine :: SimpleXML -> [SimpleXML]
+toLine x = [x, Element "br" []]
+
+toHeader :: Int -> String
+toHeader l = "h" ++ show l
+
+fancierName :: String -> String
+fancierName "PERSONAE" = "Dramatis Personae"
+fancierName n = n
+
+toHTML :: Int -> SimpleXML -> [SimpleXML]
+toHTML _ s@(PCDATA _) = [s]
+toHTML l (Element "PLAY" xs) = [Element "body" (concatMap (toHTML (l + 1)) xs)]
+toHTML l (Element "TITLE" xs) = [Element (toHeader l) xs]
+toHTML l (Element "ACT" xs) = concatMap (toHTML (l + 1)) xs
+toHTML l (Element name xs)
+  | name `elem` singleLines = toLine (head xs)
+  | otherwise = Element (toHeader (l + 1)) [PCDATA $ fancierName name] : concatMap (toHTML (l + 1)) xs
 
 ----------------------------------------------------------------------
 main :: IO ()
-main = writeFile "dream.html" (dumpXML $ formatPlay play)
+main = doTests
 
 doTests :: IO ()
 doTests = do
