@@ -130,32 +130,9 @@ testSortedList =
         ]
 
 ---------------------------------------------------------
-
-{-
-Invariant-sensitive Operations
-------------------------------
-
-Note that we didn't *have* to define `foldr`, `filter`, and `length` for `SortedList`s.
-The clients of the module could have also defined these operations themselves by using
-`toNormalList` and the `Monoid` operations.
-
-However, by defining operations in this module, we
-While merely the operations defined above are sufficient to define the analogues
-of most list functions for `SortedList`s also, implementing a replica of the
-list library only in terms of the above abstraction would necessarily come at a
-performance cost; it would necessitate conversion to and from the `SortedList`
-representation, which requires computational work.
-
-On the other hand, if we were to implement these functions *here*, we could
-take advantage of the internal sorted-ness invariant of the list in order to
-make certain operations *faster*. Let's do that.
-
-A first example: `minimum`. (Note: this definition does not have the same type
-as the `minimum` function in the standard library.)
--}
-
 minimum :: SortedList a -> Maybe a
-minimum = undefined
+minimum (SL []) = Nothing
+minimum (SL xs) = Just $ head xs
 
 testMinimum :: Test
 testMinimum =
@@ -166,7 +143,7 @@ testMinimum =
    in TestList
         [ minimum t1 ~?= Just 1, -- the minimum of a non-empty sorted list
           minimum t2 ~?= Nothing, -- the minimum of an empty sorted list
-          minimum t3 ~?= Just 1 -- minimum need not examine whole list
+          minimum t3 ~?= Just 1 -- ? minimum need not examine whole list
         ]
 
 {-
@@ -187,19 +164,16 @@ testNumDistinct =
       numDistinct (SL ([] :: [Int])) ~?= 0
     ]
 
-{-
-We can also count how many times every distinct value occurs in the list:
--}
-
-count :: Eq a => SortedList a -> SortedList (a, Integer)
-count = undefined
-
-{-
-Your implementation of `count` should result in another genuine, legal
-`SortedList`. Convince yourself that it does before moving on, keeping in mind
-the `Ord` instances for tuples are left-to-right lexicographic orderings,
-dependent on the underlying `Ord` instances of the tuple's elements.
--}
+-- ToDo: don't use list to count
+count :: (Eq a, Ord a) => SortedList a -> SortedList (a, Integer)
+count = fromList . countList . toList
+  where
+    countList :: Eq a => [a] -> [(a, Integer)]
+    countList = List.foldr f []
+      where
+        f c acc = case lookup c acc of
+          Nothing -> (c, 1) : acc
+          Just count -> (c, count + 1) : List.delete (c, count) acc
 
 testCount :: Test
 testCount =
@@ -214,7 +188,7 @@ list. This doesn't work, though. Why?
 -}
 
 whyNoFunctor :: String
-whyNoFunctor = undefined
+whyNoFunctor = "mapping from type a rto type b does not guarantee order"
 
 {-
 At this point, we have finished defining the internal implementation of
@@ -226,5 +200,5 @@ we are prevented from making "illegal" values of `SortedList`s.
 -}
 main :: IO ()
 main = do
-  _ <- runTestTT $ TestList [testSortedList]
+  _ <- runTestTT $ TestList [testSortedList, testMinimum, testCount]
   return ()
